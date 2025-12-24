@@ -148,7 +148,7 @@ app.post("/", async (req, res) => {
   const bal = await details(headers);
   res.write(`<b>Starting Balance:</b> ${bal.cash} | <b>Coins:</b> ${bal.coins}<hr>`);
 
-  const batchSize = 100; // 5 requests/sec
+  const batchSize = 1; // 5 requests/sec
   let completed = 0;
 
   // Infinite loop until user closes connection
