@@ -1,3 +1,11 @@
+app.get("/", (req, res) => {
+  res.send(`
+    <form method="POST" action="/">
+      <input name="username" placeholder="Instagram username" required />
+      <button type="submit">Start</button>
+    </form>
+  `);
+});
 const express = require("express");
 const axios = require("axios");
 const http = require("http");
