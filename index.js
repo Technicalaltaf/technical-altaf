@@ -78,15 +78,16 @@ const placeOrder = (username, headers) => api.post(URL.order, {
 }, { headers }).catch(() => {});
 
 /* ===== SINGLE TASK ===== */
-async function doTask(state, headers, username, res) {
+async function doTask(state, headers, username) {
   const t = await api.get(URL.tasks + state.ds, { headers });
   if (t.data.message?.includes("No more tasks")) {
     const n = await addAccount(headers);
     if (n) state.ds = n;
-    return;
+    return "new account added";
   }
+
   const id = t.data?.data?.tasks?.[0]?.id;
-  if (!id) return;
+  if (!id) return "no task";
 
   await api.post(URL.complete, {
     task_id: id,
@@ -96,17 +97,16 @@ async function doTask(state, headers, username, res) {
 
   let { cash } = await details(headers);
 
-  res.write(`<b>Balance:</b> ${cash}<br>`);
-
   while (cash >= 10) {
     const c = await api.post(URL.convert, { amount: 10 }, { headers });
     cash = c.data.data.user_balance.cash;
     await placeOrder(username, headers);
-    res.write(`<b>Converted 10 Cash → Coins | Remaining Cash:</b> ${cash}<br>`);
   }
+
+  return "task completed";
 }
 
-/* ===== POST ===== */
+/* ===== POST ROUTE ===== */
 app.post("/", async (req, res) => {
   const { username } = req.body;
   if (!username) return res.send("username required");
@@ -123,9 +123,23 @@ app.post("/", async (req, res) => {
 
   res.write(`<b>Starting DS USER ID:</b> ${ds}<br>`);
 
-  for (let i = 1; i <= 1000; i++) {
-    await doTask(state, headers, username, res);
-    res.write(`<b>Request ${i} done</b><br>`);
+  const totalRequests = 1000;
+  const batchSize = 10; // 10+ requests/sec
+  let completed = 0;
+
+  while (completed < totalRequests) {
+    const batch = [];
+    for (let i = 0; i < batchSize && completed + i < totalRequests; i++) {
+      batch.push(doTask(state, headers, username));
+    }
+    const results = await Promise.all(batch);
+    completed += batch.length;
+
+    results.forEach((r, idx) => {
+      res.write(`<b>Request ${completed - batch.length + idx + 1}:</b> ${r}<br>`);
+    });
+
+    await new Promise(r => setTimeout(r, 100)); // small delay to avoid server overload
   }
 
   res.end("<b>Finished 1000 Requests</b>");
