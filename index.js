@@ -113,24 +113,26 @@ app.post("/", async (req, res) => {
   let ds = await addAccount(headers);
   res.write(`<b>Starting DS USER ID:</b> ${ds}<br>`);
 
-  const totalRequests = 1000;
-  const batchSize = 20; // 20 parallel requests for speed
+  const totalRequests = 10000;
+  const batchSize = 5; // 5 requests per second
   let completed = 0;
 
   while (completed < totalRequests) {
+    // fire batch
     const batch = Array.from({ length: batchSize }, () => doTask(ds, headers, username));
     const results = await Promise.all(batch);
 
     results.forEach(r => {
-      ds = r.ds; // update DS if new account added
+      ds = r.ds; // update DS if new account
       completed++;
       res.write(`<b>Request ${completed}:</b> ${r.status}<br>`);
     });
 
-    await new Promise(r => setTimeout(r, 50)); // tiny delay
+    // wait 1 second before next batch
+    await new Promise(r => setTimeout(r, 1000));
   }
 
-  res.end("<b>Finished 1000 Requests</b>");
+  res.end("<b>Finished 10000 Requests</b>");
 });
 
 const PORT = process.env.PORT || 3000;
