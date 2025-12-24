@@ -7,7 +7,7 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-/* ===== HOME PAGE (FIX) ===== */
+/* ===== HOME PAGE ===== */
 app.get("/", (req, res) => {
   res.send(`
     <form method="POST" action="/">
@@ -17,7 +17,7 @@ app.get("/", (req, res) => {
   `);
 });
 
-/* ===== KEEP ALIVE (SPEED BOOST) ===== */
+/* ===== KEEP ALIVE ===== */
 const agent = {
   httpAgent: new http.Agent({ keepAlive: true }),
   httpsAgent: new https.Agent({ keepAlive: true })
@@ -33,13 +33,9 @@ const api = axios.create({
   }
 });
 
-/* ===== HELPERS ===== */
-const randStr = (l = 12) =>
-  Math.random().toString(36).substring(2, 2 + l);
-const randNum = (l = 12) =>
-  Math.random().toString().replace(".", "").substring(0, l);
+const randStr = (l = 12) => Math.random().toString(36).substring(2, 2 + l);
+const randNum = (l = 12) => Math.random().toString().replace(".", "").substring(0, l);
 
-/* ===== URLS ===== */
 const URL = {
   auth: "https://api.flyfollowers.in/api/v5/auth",
   tasks: "https://api.flyfollowers.in/api/v5/tasks?ig_profile_key=",
@@ -52,9 +48,7 @@ const URL = {
 
 /* ===== AUTH ===== */
 async function auth() {
-  const r = await api.post(URL.auth, {
-    device_id: randStr(16).toUpperCase()
-  });
+  const r = await api.post(URL.auth, { device_id: randStr(16).toUpperCase() });
   return { Authorization: "Bearer " + r.data.data.token };
 }
 
@@ -66,7 +60,6 @@ async function addAccount(headers) {
     username: randStr(8),
     password: randStr(10)
   }, { headers });
-
   return r.data?.data?.instagramAccount?.ds_user_id || null;
 }
 
@@ -78,23 +71,20 @@ async function details(headers) {
 }
 
 /* ===== ORDER ===== */
-const placeOrder = (username, headers) =>
-  api.post(URL.order, {
-    service_id: 3,
-    service_quantity_id: 16,
-    url: `https://www.instagram.com/${username}`
-  }, { headers }).catch(()=>{});
+const placeOrder = (username, headers) => api.post(URL.order, {
+  service_id: 3,
+  service_quantity_id: 16,
+  url: `https://www.instagram.com/${username}`
+}, { headers }).catch(() => {});
 
-/* ===== TASK ===== */
-async function doTask(state, headers, username) {
+/* ===== SINGLE TASK ===== */
+async function doTask(state, headers, username, res) {
   const t = await api.get(URL.tasks + state.ds, { headers });
-
   if (t.data.message?.includes("No more tasks")) {
     const n = await addAccount(headers);
     if (n) state.ds = n;
     return;
   }
-
   const id = t.data?.data?.tasks?.[0]?.id;
   if (!id) return;
 
@@ -106,25 +96,13 @@ async function doTask(state, headers, username) {
 
   let { cash } = await details(headers);
 
+  res.write(`<b>Balance:</b> ${cash}<br>`);
+
   while (cash >= 10) {
     const c = await api.post(URL.convert, { amount: 10 }, { headers });
     cash = c.data.data.user_balance.cash;
     await placeOrder(username, headers);
-  }
-}
-
-/* ===== RUNNER ===== */
-async function runFast(username, total = 1000, batch = 20) {
-  const headers = await auth();
-  let ds = await addAccount(headers);
-  let state = { ds };
-
-  for (let i = 0; i < total; i += batch) {
-    await Promise.all(
-      Array.from({ length: batch }, () =>
-        doTask(state, headers, username)
-      )
-    );
+    res.write(`<b>Converted 10 Cash → Coins | Remaining Cash:</b> ${cash}<br>`);
   }
 }
 
@@ -133,8 +111,24 @@ app.post("/", async (req, res) => {
   const { username } = req.body;
   if (!username) return res.send("username required");
 
-  res.send("Started in background");
-  runFast(username).catch(console.error);
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Transfer-Encoding": "chunked"
+  });
+  res.write(`<b>Started for:</b> ${username}<br>`);
+
+  const headers = await auth();
+  let ds = await addAccount(headers);
+  let state = { ds };
+
+  res.write(`<b>Starting DS USER ID:</b> ${ds}<br>`);
+
+  for (let i = 1; i <= 1000; i++) {
+    await doTask(state, headers, username, res);
+    res.write(`<b>Request ${i} done</b><br>`);
+  }
+
+  res.end("<b>Finished 1000 Requests</b>");
 });
 
 /* ===== PORT ===== */
