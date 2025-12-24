@@ -1,11 +1,3 @@
-app.get("/", (req, res) => {
-  res.send(`
-    <form method="POST" action="/">
-      <input name="username" placeholder="Instagram username" required />
-      <button type="submit">Start</button>
-    </form>
-  `);
-});
 const express = require("express");
 const axios = require("axios");
 const http = require("http");
@@ -14,6 +6,16 @@ const https = require("https");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+/* ===== HOME PAGE (FIX) ===== */
+app.get("/", (req, res) => {
+  res.send(`
+    <form method="POST" action="/">
+      <input name="username" placeholder="Instagram username" required />
+      <button type="submit">Start</button>
+    </form>
+  `);
+});
 
 /* ===== KEEP ALIVE (SPEED BOOST) ===== */
 const agent = {
@@ -83,7 +85,7 @@ const placeOrder = (username, headers) =>
     url: `https://www.instagram.com/${username}`
   }, { headers }).catch(()=>{});
 
-/* ===== SINGLE TASK ===== */
+/* ===== TASK ===== */
 async function doTask(state, headers, username) {
   const t = await api.get(URL.tasks + state.ds, { headers });
 
@@ -111,22 +113,22 @@ async function doTask(state, headers, username) {
   }
 }
 
-/* ===== MASS PARALLEL RUNNER ===== */
+/* ===== RUNNER ===== */
 async function runFast(username, total = 1000, batch = 20) {
   const headers = await auth();
   let ds = await addAccount(headers);
   let state = { ds };
 
   for (let i = 0; i < total; i += batch) {
-    const jobs = [];
-    for (let j = 0; j < batch; j++) {
-      jobs.push(doTask(state, headers, username));
-    }
-    await Promise.all(jobs); // 🔥 20x–30x speed
+    await Promise.all(
+      Array.from({ length: batch }, () =>
+        doTask(state, headers, username)
+      )
+    );
   }
 }
 
-/* ===== ROUTE ===== */
+/* ===== POST ===== */
 app.post("/", async (req, res) => {
   const { username } = req.body;
   if (!username) return res.send("username required");
